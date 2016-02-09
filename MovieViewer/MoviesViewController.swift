@@ -10,20 +10,39 @@ import UIKit
 import AFNetworking
 import MBProgressHUD
 
-class MoviesViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
+class MoviesViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UISearchBarDelegate {
     
     @IBOutlet weak var tableView: UITableView!
     @IBOutlet weak var errorView: UIView!
     
-    var movies: [NSDictionary]?
+    @IBOutlet weak var searchBar: UISearchBar!
     
+    var movies: [NSDictionary]?
+    var filteredData: [NSDictionary]?
+    var endpoint: String!
     override func viewDidLoad() {
         super.viewDidLoad()
-        errorView.hidden        =   true
+        
+        //Setting ScrollView
+        
+        
+        //Setting Delegate Methods
         tableView.delegate      =   self
         tableView.dataSource    =   self
+        searchBar.delegate      =   self
+        
+        //Hiding Error View
+        errorView.hidden        =   true
+
         loadDataFromNetwork()
         
+        settingUIRefreshControl()
+
+    }
+    
+    //MARK: - Methods used to implement UIRefreshControl
+    
+    func settingUIRefreshControl(){
         // Initialize a UIRefreshControl
         let refreshControl  =   UIRefreshControl()
         //Binding refreshControlAction selector to UIRefreshControl so that something when happen when pull to refresh
@@ -73,11 +92,12 @@ class MoviesViewController: UIViewController, UITableViewDataSource, UITableView
         // Dispose of any resources that can be recreated.
     }
     
+    //MARK: - Helper Methods
     func loadDataFromNetwork(){
         
         // ... Create the NSURLRequest (myRequest) ...
         let apiKey = "a07e22bc18f5cb106bfe4cc1f83ad8ed"
-        let url = NSURL(string: "https://api.themoviedb.org/3/movie/now_playing?api_key=\(apiKey)")
+        let url = NSURL(string: "https://api.themoviedb.org/3/movie/\(endpoint)?api_key=\(apiKey)")
         let myRequest = NSURLRequest(
             URL: url!,
             cachePolicy: NSURLRequestCachePolicy.ReloadIgnoringLocalCacheData,
@@ -103,7 +123,8 @@ class MoviesViewController: UIViewController, UITableViewDataSource, UITableView
                 if let data = data {
                     if let responseDictionary = try! NSJSONSerialization.JSONObjectWithData(
                         data, options:[]) as? NSDictionary {
-                            self.movies  =   responseDictionary["results"] as! [NSDictionary]
+                            self.movies         =   responseDictionary["results"] as! [NSDictionary]
+                            self.filteredData        =   self.movies
                             self.tableView.reloadData()
                     }
                 }
@@ -112,9 +133,11 @@ class MoviesViewController: UIViewController, UITableViewDataSource, UITableView
         task.resume()
     }
     
+    //MARK: - UITableViewDataSource Methods
+    
     func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int{
         
-        if let movies = movies{
+        if let movies = filteredData{
             errorView.hidden    =   true
             return movies.count
         }else{
@@ -124,9 +147,9 @@ class MoviesViewController: UIViewController, UITableViewDataSource, UITableView
     }
     
     func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell{
-        let cell    =   tableView.dequeueReusableCellWithIdentifier("MovieCell", forIndexPath: indexPath) as! MovieTableViewCell
         
-        let movie   =   movies![indexPath.row]
+        let cell    =   tableView.dequeueReusableCellWithIdentifier("MovieCell", forIndexPath: indexPath) as! MovieTableViewCell
+        let movie   =   filteredData![indexPath.row]
         let title   =   movie["title"] as! String
         let overview   =   movie["overview"] as! String
         let baseUrl = "http://image.tmdb.org/t/p/w342"
@@ -147,12 +170,38 @@ class MoviesViewController: UIViewController, UITableViewDataSource, UITableView
     override func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
         let cell        =   sender as! UITableViewCell
         let indexPath   =   tableView.indexPathForCell(cell)
-        let movie       =   movies![indexPath!.row]
+        let movie       =   filteredData![indexPath!.row]
         
         let detailViewController    =   segue.destinationViewController as! DetailViewController
         detailViewController.movie  =   movie
         
     }
-
     
+    //MARK: - UISearchBarDelegate Methods
+    
+    // called when text changes (including clear)
+    func searchBar(searchBar: UISearchBar, textDidChange searchText: String){
+        if searchText.isEmpty{
+            filteredData = movies
+        }else{
+            filteredData = []
+//            var index    = 0
+            for movie in movies!{
+                let movieName   =   movie["title"] as! String
+                if movieName.rangeOfString(searchText, options: .CaseInsensitiveSearch) != nil {
+                    filteredData?.append(movie)
+                }
+                
+            }
+        }
+
+        self.tableView.reloadData()
+    }
+  
+  func tableView(tableView: UITableView, didDeselectRowAtIndexPath indexPath: NSIndexPath) {
+    let selectedCell = tableView.cellForRowAtIndexPath(indexPath)!
+    selectedCell.contentView.backgroundColor = UIColor.grayColor()
+
+  }
+  
 }
